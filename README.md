@@ -102,6 +102,42 @@ The orchestrator’s routing logic distinguishes between **single‑action** and
 - A Google Cloud service account with Calendar API enabled
 - A local LLM endpoint (the code uses `http://127.0.0.1:8082/v1` – you can replace with OpenAI or any LangChain‑compatible model)
 
+# Environment Configuration (`.env`)
+
+This file explains the purpose of each environment variable used by the Calendar Agent.
+
+## Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Absolute path to the Google service account JSON key file. | `C:\secrets\calendar-key.json` or `/home/user/calendar-key.json` |
+| `GOOGLE_CALENDAR_ID` | The calendar ID to operate on. For a Gmail account, use your email address. For a Google Workspace resource, use the resource email. | `yourname@gmail.com` or `xyz123@group.calendar.google.com` |
+
+## Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GOOGLE_CLIENT_ID` | OAuth client ID (if using OAuth instead of service account). Not required for service account authentication. | *none* |
+
+## How to Obtain the Credentials
+
+1. **Service Account Key (JSON)**  
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)  
+   - Enable the **Google Calendar API**  
+   - Create a service account and assign **Calendar Editor** role  
+   - Generate a JSON key and download it  
+   - Place the file in a secure location and set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path
+
+2. **Calendar ID**  
+   - For a primary calendar: your Gmail address  
+   - For a secondary calendar: find it under calendar settings → "Calendar ID" (e.g., `abc123@group.calendar.google.com`)
+
+## Example `.env` File
+
+```ini
+GOOGLE_APPLICATION_CREDENTIALS=/home/user/keys/calendar-service-account.json
+GOOGLE_CALENDAR_ID=john.doe@gmail.com
+
 ### Installation
 
 ```bash
