@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calendar-agent"
+version = "0.1.0"
+description = "Hierarchical Calendar Agent with intelligent supervisor and sub-agents"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9,<3.13"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "langgraph>=1.0.2,<2.0.0",
+    "langgraph-supervisor>=0.0.31,<0.1.0",
+    "langchain-core>=1.4.0,<2.0.0",
+    "langchain-openai>=1.0.0,<2.0.0",
+    "langchain-chroma>=1.0.0,<2.0.0",    # optional, for future RAG
+    "pydantic>=2.0.0,<3.0.0",
+    "mcp>=1.0.0,<2.0.0",                # if you still use MCP client; otherwise can be removed
+    "httpx>=0.25.0",
+    "apscheduler>=3.10.0",              # if not used, can be removed
+    "python-dotenv>=1.0.0",
+    # Calendar API and date handling
+    "dateparser>=1.2.0",
+    "pytz>=2024.1",
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+calendar-agent = "calendar_agent.main:app"
+
+[tool.setuptools]
+packages = ["calendar_agent"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+calendar_agent = ["*.yaml", "*.toml", "config/*.yaml"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
