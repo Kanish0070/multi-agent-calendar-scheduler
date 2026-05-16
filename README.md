@@ -136,7 +136,7 @@ This file explains the purpose of each environment variable used by the Calendar
 
 ```ini
 GOOGLE_APPLICATION_CREDENTIALS=/home/user/keys/calendar-service-account.json
-GOOGLE_CALENDAR_ID=john.doe@gmail.com
+GOOGLE_CALENDAR_ID=samplexxx@gmail.com
 
 ### Installation
 
