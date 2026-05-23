@@ -140,10 +140,7 @@ DEBUG: Event body being sent: {'summary': 'Project Review', 'start': {'dateTime'
 [Supervisor] Step 4 completed.
 
 Agent: ✅ Event 'Project Review' created successfully. (Event ID: cp8l8h98njpf7vsfd7clmcoc8s)
-''''
----
-'''text
-
+'''
 ## 🛠️ Setup & Usage
 
 ### Prerequisites
