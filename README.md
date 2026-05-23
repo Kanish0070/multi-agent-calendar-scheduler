@@ -31,10 +31,10 @@ The orchestrator also supports **multi‑step plan execution** with context shar
 - **Conversation History** – The orchestrator maintains a full list of `HumanMessage` and `AIMessage` objects, used for context when routing or parsing.
 - **Agent‑Local State** – Each spawned agent keeps its own short‑lived context (e.g., `failure_context` in `CloudFallbackAgent`).
 - **Plan Execution State** – For multi‑step plans, the orchestrator stores:
-  - `pending_plan`: the list of steps.
-  - `pending_plan_context`: a key‑value dictionary that accumulates data across steps (e.g., free slot start/end times, event IDs).
-  - `pending_plan_results`: the responses from completed steps.
-  - `pending_plan_step_index`: the current step (0‑based) when a plan is paused.
+  - `pending_plan`: the list of steps.
+  - `pending_plan_context`: a key‑value dictionary that accumulates data across steps (e.g., free slot start/end times, event IDs).
+  - `pending_plan_results`: the responses from completed steps.
+  - `pending_plan_step_index`: the current step (0‑based) when a plan is paused.
 - **Negotiation State** – When a conflict occurs, the orchestrator enters a negotiation state (`self.negotiation_event` and `self.last_free_slots`) and waits for user input.
 
 ### 🔹 Planning & Decomposition (with Step Tracking)
@@ -43,8 +43,8 @@ The **Planning Agent** is responsible for breaking a natural language request in
 
 - **Input** – User message (e.g., “Check my Friday afternoon and then schedule a meeting with John in the first free slot”).
 - **Process** – The LLM is prompted to return a JSON array of steps. Each step contains:
-  - `action`: one of `create_event`, `delete_event`, `check_availability`, `list_events`, `reschedule_event`.
-  - `title`, `start_time`, `end_time`, `description`, `location`, `event_id` (as needed).
+  - `action`: one of `create_event`, `delete_event`, `check_availability`, `list_events`, `reschedule_event`.
+  - `title`, `start_time`, `end_time`, `description`, `location`, `event_id` (as needed).
 - **Placeholders** – Steps may include placeholders like `{{free_slot_start}}` and `{{free_slot_end}}`. These are replaced at runtime using the shared `pending_plan_context`.
 - **Step Tracking** – The orchestrator executes steps sequentially. After each step, it calls `planning_agent.update_context()` to extract new information (e.g., free time slots, event IDs) and update the context dictionary. This ensures that later steps automatically receive the output of earlier steps.
 - **Pause & Resume** – If a step fails (e.g., a time conflict), the orchestrator pauses the plan, stores the entire execution state, and enters a negotiation sub‑dialogue. After the user resolves the conflict, the plan resumes from the exact step where it stopped.
@@ -56,23 +56,23 @@ The orchestrator’s routing logic distinguishes between **single‑action** and
 #### Single‑action flow
 1. **Analyse** – `analyze_message_content()` determines if the message mentions tools, availability, conflicts, completion, etc.
 2. **Route** – Based on analysis, the orchestrator decides:
-   - `"tools"` → directly delegate to the worker.
-   - `"tools_with_validator"` → spawn a `ValidatorAgent` to check availability first.
-   - `"output_parser"` → summarise recent history.
-   - `"reasoner"` → use the LLM for uncertainty handling.
+   - `"tools"` → directly delegate to the worker.
+   - `"tools_with_validator"` → spawn a `ValidatorAgent` to check availability first.
+   - `"output_parser"` → summarise recent history.
+   - `"reasoner"` → use the LLM for uncertainty handling.
 3. **Execute** – The selected routing action produces a response.
 
 #### Multi‑step flow (with collision detection)
 1. **Plan** – `planning_agent.create_plan()` returns a list of steps.
 2. **Loop** – For each step:
-   - Replace placeholders using current context.
-   - Convert step to a natural language message.
-   - Call `_process_single_action()` on that message.
-   - If the step is a `create_event` and a conflict is detected, the worker returns a special response starting with `"⚠️ Conflict detected"`.
+   - Replace placeholders using current context.
+   - Convert step to a natural language message.
+   - Call `_process_single_action()` on that message.
+   - If the step is a `create_event` and a conflict is detected, the worker returns a special response starting with `"⚠️ Conflict detected"`.
 3. **On conflict** – The orchestrator stores all pending plan state (`pending_plan`, `pending_plan_context`, `pending_plan_results`, `pending_plan_step_index`) and enters a **negotiation loop**. The user can:
-   - Force create despite conflict (reply `9`).
-   - See alternative free slots (reply `2`).
-   - Cancel the plan (reply `3`).
+   - Force create despite conflict (reply `9`).
+   - See alternative free slots (reply `2`).
+   - Cancel the plan (reply `3`).
 4. **Resume** – After the user resolves the conflict, the orchestrator resumes executing from the exact step index, re‑running availability checks if necessary.
 5. **Completion** – All steps are combined into a final user‑friendly message via `planning_agent.combine_results()`.
 
@@ -93,4 +93,107 @@ The orchestrator’s routing logic distinguishes between **single‑action** and
 - **Fallback on LLM failure** – If the LLM fails to parse an intent, the worker falls back to a keyword‑based extraction method (`_extract_intent`) that uses regex and `dateparser` to salvage the request.
 - **Conflict recovery** – The system never blindly creates conflicting events. It offers alternatives (free slots found via `find_free_slots`) and lets the user decide, preventing irreversible mistakes.
 - **Stateless API interactions** – The worker’s calendar API calls are asynchronous and stateless. If a call fails (e.g., network error), the `CloudFallbackAgent` can be spawned to analyse the failure and suggest retries or workarounds.
-- **Human escalation** – When the fallback agent determines that an issue is too complex (e.g., ambiguous user intent or API permission errors), it raises a flag for human
+- **Human escalation** – When the fallback agent determines that an issue is too complex (e.g., ambiguous user intent or API permission errors), it raises a flag for human review. The escalation message is generated by the LLM and can be logged or sent to an external system.
+
+## 🚀 End-to-End Execution Trace (Multi-Step Conflict Prevention) -live demo
+
+The following live terminal log demonstrates the **Supervisor-Planner-Worker** harness executing a complex, multi-conditional user prompt using a local `CoPaw-Flash-9B` model stack.
+
+### The Challenge
+**User Intent:** *"Schedule a 2-hour project review with my team on Friday between 1 PM and 5 PM. If there's a conflict, look at Thursday afternoon instead. If both days are fully blocked, find the earliest 1-hour slot on Monday morning and send out the invite."*
+
+### Live Execution Log
+```text
+=== Calendar Agent System Initialized ===
+Available tools:
+  - createEvent: Create a new calendar event
+  - deleteEvent: Delete an existing calendar event
+  - checkAvailability: Check calendar availability
+  - listEvents: List calendar events
+  - exit: to exit the agent
+
+Active agents: []
+
+--- Calendar Agent ---
+[Supervisor] Received: Schedule a 2-hour project review with my team on Friday between 1 PM and 5 PM. If there's a conflict, look at Thursday afternoon instead. If both days are fully blocked, find the earliest 1-hour slot on Monday morning and send out the invite.
+[Planner] Analysing user request...
+[Planner] Created plan with 4 steps.
+  1. check_availability 
+  2. check_availability 
+  3. check_availability 
+  4. create_event (Project Review)
+[Supervisor] Multi‑step request detected. Executing plan with 4 steps.
+[Supervisor] Step 1/4: check_availability
+[Supervisor] Spawning Availability Check Agent: validator-0
+[Supervisor] Spawning Task Verification Agent: verifier-1
+[Supervisor] Spawning Availability Check Agent: validator-2
+[ValidatorAgent] Checking availability: 2026-05-29T13:00:00+05:30 - 2026-05-29T15:00:00+05:30
+[ValidatorAgent] Result: {'available': True, 'conflicts': [], 'validation_analysis': 'The calendar confirms availability for the requested time slot...', 'confidence': 'high'}
+[Supervisor] Cleaning up agent: validator-0
+...
+[Supervisor] Step 4/4: create_event
+[Supervisor] Spawning Task Verification Agent: verifier-0
+[Worker] Action: create_event | Title: Project Review
+DEBUG: Event body being sent: {'summary': 'Project Review', 'start': {'dateTime': '2026-05-29T13:00:00+05:30'}, 'end': {'dateTime': '2026-05-29T15:00:00+05:30'}}
+[Supervisor] Cleaning up agent: verifier-0
+[Planner] Extracted and added to context: {'event_id': 'cp8l8h98njpf7vsfd7clmcoc8s'}
+[Supervisor] Step 4 completed.
+
+Agent: ✅ Event 'Project Review' created successfully. (Event ID: cp8l8h98njpf7vsfd7clmcoc8s)
+''''
+---
+'''text
+
+## 🛠️ Setup & Usage
+
+### Prerequisites
+- Python 3.10+
+- A Google Cloud service account with Calendar API enabled
+- A local LLM endpoint (the code uses `http://127.0.0.1:8082/v1` – you can replace with OpenAI or any LangChain‑compatible model)
+
+# Environment Configuration (`.env`)
+
+This file explains the purpose of each environment variable used by the Calendar Agent.
+
+## Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Absolute path to the Google service account JSON key file. | `C:\secrets\calendar-key.json` or `/home/user/calendar-key.json` |
+| `GOOGLE_CALENDAR_ID` | The calendar ID to operate on. For a Gmail account, use your email address. For a Google Workspace resource, use the resource email. | `yourname@gmail.com` or `xyz123@group.calendar.google.com` |
+
+## Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GOOGLE_CLIENT_ID` | OAuth client ID (if using OAuth instead of service account). Not required for service account authentication. | *none* |
+
+## How to Obtain the Credentials
+
+1. **Service Account Key (JSON)**  
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)  
+   - Enable the **Google Calendar API**  
+   - Create a service account and assign **Calendar Editor** role  
+   - Generate a JSON key and download it  
+   - Place the file in a secure location and set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path
+
+2. **Calendar ID**  
+   - For a primary calendar: your Gmail address  
+   - For a secondary calendar: find it under calendar settings → "Calendar ID" (e.g., `abc123@group.calendar.google.com`)
+
+## Example `.env` File
+
+```ini
+GOOGLE_APPLICATION_CREDENTIALS=/home/user/keys/calendar-service-account.json
+GOOGLE_CALENDAR_ID=samplexxx@gmail.com
+
+### Installation
+
+```bash
+git clone https://github.com/Kanish0070/multi-agent-calendar-scheduler.git
+cd multi-agent-calendar-scheduler
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install -e .
+
+make the setup into its own suh heading , dont change any other
