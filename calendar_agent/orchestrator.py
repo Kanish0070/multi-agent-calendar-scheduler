@@ -576,6 +576,14 @@ Message: {message}
             validator = self.spawn_validator_agent()
             start_time, end_time = await self._parse_availability_request(message)
             if start_time and end_time:
+                # --- TIMEZONE NORMALIZATION PATCH ---
+                ist_offset = "+05:30"
+                if "+" not in start_time and "Z" not in start_time:
+                    start_time = start_time.strip() + ist_offset
+                if "+" not in end_time and "Z" not in end_time:
+                    end_time = end_time.strip() + ist_offset
+                # ------------------------------------
+
                 availability_result = await validator.check_availability(start_time, end_time)
                 result["response"] = f"Availability: {availability_result}"
             else:
